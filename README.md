@@ -53,7 +53,7 @@ This will convert the PDF to an MP3 file with the same name in the same director
 ### Command Line Options
 
 ```
-python pdf2mp3.py [-h] [--output OUTPUT] [--voice VOICE] [--model MODEL] [--chunk-size CHUNK_SIZE] [--no-gpu] pdf_path
+python pdf2mp3.py [-h] [--output OUTPUT] [--voice VOICE] [--model MODEL] [--chunk-size CHUNK_SIZE] [--no-gpu] [--volume VOLUME] pdf_path
 ```
 
 Arguments:
@@ -64,6 +64,7 @@ Arguments:
 - `--model`, `-m`: LLM model to use for text processing (default: facebook/bart-large-cnn)
 - `--chunk-size`, `-c`: Text chunk size for processing (default: 1000)
 - `--no-gpu`: Disable GPU acceleration
+- `--volume`: Volume adjustment in dB (default: 0, negative values decrease volume, positive values increase volume)
 
 ### Examples
 
@@ -85,6 +86,11 @@ python pdf2mp3.py document.pdf --model t5-base
 Process without GPU acceleration:
 ```
 python pdf2mp3.py document.pdf --no-gpu
+```
+
+Increase the volume of the generated audio by 6 dB:
+```
+python pdf2mp3.py document.pdf --volume 6
 ```
 
 ## How It Works

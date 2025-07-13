@@ -47,6 +47,7 @@ def parse_arguments():
     parser.add_argument("--model", "-m", default="facebook/bart-large-cnn", help="LLM model to use for text processing")
     parser.add_argument("--chunk-size", "-c", type=int, default=1000, help="Text chunk size for processing (default: 1000)")
     parser.add_argument("--no-gpu", action="store_true", help="Disable GPU acceleration")
+    parser.add_argument("--volume", type=int, default=0, help="Volume adjustment in dB (default: 0, negative values decrease volume, positive values increase volume)")
     return parser.parse_args()
 
 def extract_text_from_pdf(pdf_path):
@@ -262,8 +263,15 @@ def text_to_speech(text, voice, use_gpu):
 
         return audio, 16000  # 16kHz sample rate
 
-def save_audio_to_mp3(audio, sample_rate, output_path):
-    """Save audio data to an MP3 file."""
+def save_audio_to_mp3(audio, sample_rate, output_path, volume_db=0):
+    """Save audio data to an MP3 file with optional volume adjustment.
+
+    Args:
+        audio: Audio data as numpy array
+        sample_rate: Sample rate of the audio
+        output_path: Path to save the MP3 file
+        volume_db: Volume adjustment in dB (default: 0, negative values decrease volume, positive values increase volume)
+    """
     print(f"Saving audio to {output_path}...")
 
     # Convert to 16-bit PCM
@@ -280,6 +288,13 @@ def save_audio_to_mp3(audio, sample_rate, output_path):
 
     # Convert WAV to MP3
     audio_segment = AudioSegment.from_wav(temp_wav)
+
+    # Adjust volume if needed
+    if volume_db != 0:
+        print(f"Adjusting volume by {volume_db} dB")
+        audio_segment = audio_segment.apply_gain(volume_db)
+
+    # Export to MP3
     audio_segment.export(output_path, format="mp3")
 
     # Remove temporary WAV file
@@ -332,7 +347,7 @@ def main():
     audio, sample_rate = text_to_speech(processed_text, args.voice, not args.no_gpu)
 
     # Save audio to MP3
-    save_audio_to_mp3(audio, sample_rate, args.output)
+    save_audio_to_mp3(audio, sample_rate, args.output, args.volume)
 
 if __name__ == "__main__":
     main()
