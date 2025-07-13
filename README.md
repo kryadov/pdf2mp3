@@ -179,8 +179,9 @@ To ensure GPU acceleration works properly:
 - **Text-to-Speech Errors**: If you encounter errors related to text-to-speech conversion:
   1. If you see "DeepPhonemizer is not installed" error, run: `pip install deep-phonemizer>=0.0.17`
   2. If you see "SpeechT5Tokenizer requires the SentencePiece library" error, run: `pip install sentencepiece`
-  3. For other TTS errors, the application will automatically fall back to a simpler TTS method
-  4. If both TTS methods fail, try updating torchaudio: `pip install --upgrade torchaudio`
+  3. If you see errors about speaker embeddings, make sure the datasets library is installed: `pip install datasets`
+  4. For other TTS errors, the application will automatically fall back to a simpler TTS method
+  5. If both TTS methods fail, try updating torchaudio: `pip install --upgrade torchaudio`
 - **Text Processing Errors**: If you encounter errors related to text processing:
   1. Try using a different LLM model with `--model` option
   2. Adjust the chunk size with `--chunk-size` option (smaller chunks may process better)
@@ -190,6 +191,11 @@ If you get issues with sentencepiece:
 ```
 pip install https://github.com/Somi-Project/SP313/releases/download/V1.0.0/sentencepiece-0.2.0-cp313-cp313-win_amd64.whl
 ```
+
+- **PyTorch Serialization Issues**: If you encounter errors related to PyTorch serialization (like `'str' object has no attribute '__module__'`):
+  1. Make sure you're using a compatible version of PyTorch and deep-phonemizer
+  2. The application automatically adds safe globals for PyTorch 2.6+ compatibility
+  3. If issues persist, try downgrading PyTorch: `pip install torch==2.0.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118`
 
 ## License
 

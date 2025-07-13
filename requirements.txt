@@ -14,3 +14,4 @@ cryptography
 deep-phonemizer  # Required for torchaudio TTS
 sentencepiece
 huggingface_hub[hf_xet]
+datasets     # Required for speaker embeddings

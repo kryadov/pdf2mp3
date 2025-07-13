@@ -18,7 +18,13 @@ from pydub import AudioSegment
 # Add safe globals for PyTorch 2.6+ compatibility
 try:
     from torch.serialization import add_safe_globals
-    add_safe_globals(["dp.preprocessing.text.Preprocessor"])
+    add_safe_globals([
+        "dp.preprocessing.text.Preprocessor",
+        "dp.model.model.Phonemizer",
+        "dp.phonemizer.Phonemizer",
+        "dp.model.model.load_checkpoint",
+        "dp.model.model.G2p"
+    ])
     print("Added safe globals for PyTorch 2.6+ compatibility")
 except ImportError:
     print("Using PyTorch version that doesn't require safe globals configuration")
@@ -176,10 +182,24 @@ def text_to_speech(text, voice, use_gpu):
 
         # Fallback to a simpler TTS method
         from transformers import SpeechT5Processor, SpeechT5ForTextToSpeech, SpeechT5HifiGan
+        import datasets
 
+        print("Loading SpeechT5 model and speaker embeddings...")
         processor = SpeechT5Processor.from_pretrained("microsoft/speecht5_tts")
         model = SpeechT5ForTextToSpeech.from_pretrained("microsoft/speecht5_tts").to(device)
         vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan").to(device)
+
+        # Load speaker embeddings from the CMU Arctic dataset
+        try:
+            # Load speaker embeddings
+            embeddings_dataset = datasets.load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
+            speaker_embeddings = torch.tensor(embeddings_dataset[7]["xvector"]).unsqueeze(0).to(device)
+            print("Speaker embeddings loaded successfully")
+        except Exception as e:
+            print(f"Error loading speaker embeddings: {e}")
+            print("Using default speaker embeddings")
+            # Create a default speaker embedding if loading fails
+            speaker_embeddings = torch.randn(1, 512).to(device)
 
         # Split text into chunks to avoid memory issues
         chunks = [text[i:i+500] for i in range(0, len(text), 500)]
@@ -194,20 +214,28 @@ def text_to_speech(text, voice, use_gpu):
             # Process the chunk
             inputs = processor(text=chunk, return_tensors="pt").to(device)
 
-            # Fix for SpeechT5HifiGan not having 'size' attribute
+            # Generate speech with speaker embeddings
             try:
-                # Try the standard way first
-                speech = model.generate_speech(inputs["input_ids"], vocoder)
-            except AttributeError as e:
-                if "size" in str(e):
-                    # If the error is about 'size' attribute, use a different approach
-                    print("Using alternative method for speech generation due to vocoder compatibility issue")
-                    # Generate speech without passing the vocoder directly
-                    speech_hidden_states = model.generate_speech(inputs["input_ids"], None)
-                    # Then use the vocoder separately
+                # Try the standard way first with speaker embeddings
+                speech_hidden_states = model.generate_speech(
+                    inputs["input_ids"], 
+                    speaker_embeddings=speaker_embeddings
+                )
+                # Use vocoder separately
+                speech = vocoder(speech_hidden_states)
+            except Exception as e:
+                print(f"Error in speech generation: {e}")
+                print("Trying alternative method...")
+                try:
+                    # Alternative approach
+                    speech_hidden_states = model.generate_speech(
+                        inputs["input_ids"], 
+                        speaker_embeddings=speaker_embeddings,
+                        vocoder=None
+                    )
                     speech = vocoder(speech_hidden_states)
-                else:
-                    # If it's a different AttributeError, re-raise it
+                except Exception as e2:
+                    print(f"Alternative method also failed: {e2}")
                     raise
 
             # Convert to numpy array
