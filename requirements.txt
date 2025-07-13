@@ -1,0 +1,17 @@
+# Dependencies for PDF to MP3 converter
+PyPDF        # For PDF text extraction
+tokenizers     # Pre-compiled tokenizers version
+transformers   # Hugging Face transformers for LLM
+torch           # PyTorch for GPU acceleration
+torchaudio     # Audio processing with PyTorch
+numpy          # Numerical operations
+pydub          # Audio file manipulation
+PyAudio        # Audio processing (provides audioop)
+click          # Command line interface
+tqdm           # Progress bars
+audioop-lts
+cryptography
+deep-phonemizer  # Required for torchaudio TTS
+tqdm
+pypdf
+sentencepiece
