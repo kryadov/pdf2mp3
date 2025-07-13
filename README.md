@@ -193,9 +193,10 @@ pip install https://github.com/Somi-Project/SP313/releases/download/V1.0.0/sente
 ```
 
 - **PyTorch Serialization Issues**: If you encounter errors related to PyTorch serialization (like `'str' object has no attribute '__module__'`):
-  1. Make sure you're using a compatible version of PyTorch and deep-phonemizer
-  2. The application automatically adds safe globals for PyTorch 2.6+ compatibility
-  3. If issues persist, try downgrading PyTorch: `pip install torch==2.0.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118`
+  1. The application automatically adds safe globals for PyTorch 2.6+ compatibility and includes fallback mechanisms
+  2. If you encounter `'str' object has no attribute '__module__'` errors, the application will automatically fall back to an alternative TTS method
+  3. If you see `Can't call numpy() on Tensor that requires grad` errors, the application now properly detaches tensors before conversion
+  4. If issues persist, try downgrading PyTorch: `pip install torch==2.0.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118`
 
 ## License
 

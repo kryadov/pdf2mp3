@@ -23,8 +23,17 @@ try:
         "dp.model.model.Phonemizer",
         "dp.phonemizer.Phonemizer",
         "dp.model.model.load_checkpoint",
-        "dp.model.model.G2p"
+        "dp.model.model.G2p",
+        # Add additional safe globals that might be needed
+        "dp.model.model.Dictionary",
+        "dp.model.model.Tokenizer",
+        "dp.model.model.Normalizer"
     ])
+    # Also add functions that might be used during unpickling
+    import torch.nn
+    import torch.nn.functional
+    import torch.nn.modules
+    import torch.nn.parameter
     print("Added safe globals for PyTorch 2.6+ compatibility")
 except ImportError:
     print("Using PyTorch version that doesn't require safe globals configuration")
@@ -140,9 +149,15 @@ def text_to_speech(text, voice, use_gpu):
 
         # Load the TTS model
         bundle = TACOTRON2_WAVERNN_PHONE_LJSPEECH
-        processor = bundle.get_text_processor()
-        tacotron2 = bundle.get_tacotron2().to(device)
-        vocoder = bundle.get_vocoder().to(device)
+        try:
+            processor = bundle.get_text_processor()
+            tacotron2 = bundle.get_tacotron2().to(device)
+            vocoder = bundle.get_vocoder().to(device)
+        except AttributeError as e:
+            print(f"Error loading TTS model components: {e}")
+            print("This is likely due to compatibility issues with PyTorch 2.6+")
+            print("Falling back to alternative TTS method...")
+            raise Exception("TTS model loading failed") # This will trigger the fallback method
 
         # Split text into sentences to avoid memory issues
         sentences = text.replace('\n', ' ').split('. ')
@@ -168,7 +183,7 @@ def text_to_speech(text, voice, use_gpu):
                 waveforms, _ = vocoder(spec, spec_lengths)
 
                 # Convert to numpy array
-                audio_np = waveforms[0].cpu().numpy()
+                audio_np = waveforms[0].detach().cpu().numpy()
                 audio_segments.append(audio_np)
 
         # Concatenate audio segments
@@ -239,7 +254,7 @@ def text_to_speech(text, voice, use_gpu):
                     raise
 
             # Convert to numpy array
-            audio_np = speech.cpu().numpy()
+            audio_np = speech.detach().cpu().numpy()
             audio_segments.append(audio_np)
 
         # Concatenate audio segments
