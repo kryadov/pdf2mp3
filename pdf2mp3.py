@@ -15,6 +15,14 @@ from pypdf import PdfReader
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 from pydub import AudioSegment
 
+# Add safe globals for PyTorch 2.6+ compatibility
+try:
+    from torch.serialization import add_safe_globals
+    add_safe_globals(["dp.preprocessing.text.Preprocessor"])
+    print("Added safe globals for PyTorch 2.6+ compatibility")
+except ImportError:
+    print("Using PyTorch version that doesn't require safe globals configuration")
+
 def parse_arguments():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="Convert PDF to MP3 audiobook using LLM and GPU")
@@ -185,7 +193,22 @@ def text_to_speech(text, voice, use_gpu):
 
             # Process the chunk
             inputs = processor(text=chunk, return_tensors="pt").to(device)
-            speech = model.generate_speech(inputs["input_ids"], vocoder)
+
+            # Fix for SpeechT5HifiGan not having 'size' attribute
+            try:
+                # Try the standard way first
+                speech = model.generate_speech(inputs["input_ids"], vocoder)
+            except AttributeError as e:
+                if "size" in str(e):
+                    # If the error is about 'size' attribute, use a different approach
+                    print("Using alternative method for speech generation due to vocoder compatibility issue")
+                    # Generate speech without passing the vocoder directly
+                    speech_hidden_states = model.generate_speech(inputs["input_ids"], None)
+                    # Then use the vocoder separately
+                    speech = vocoder(speech_hidden_states)
+                else:
+                    # If it's a different AttributeError, re-raise it
+                    raise
 
             # Convert to numpy array
             audio_np = speech.cpu().numpy()
