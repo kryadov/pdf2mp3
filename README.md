@@ -53,7 +53,7 @@ This will convert the PDF to an MP3 file with the same name in the same director
 ### Command Line Options
 
 ```
-python pdf2mp3.py [-h] [--output OUTPUT] [--voice VOICE] [--model MODEL] [--chunk-size CHUNK_SIZE] [--no-gpu] [--volume VOLUME] pdf_path
+python pdf2mp3.py [-h] [--output OUTPUT] [--voice VOICE] [--tts-backend {speecht5,torchaudio}] [--model MODEL] [--chunk-size CHUNK_SIZE] [--no-gpu] [--volume VOLUME] pdf_path
 ```
 
 Arguments:
@@ -61,8 +61,11 @@ Arguments:
 - `pdf_path`: Path to the PDF file (required)
 - `--output`, `-o`: Output MP3 file path (default: same as PDF with .mp3 extension)
 - `--voice`, `-v`: Voice to use for TTS (default: en_US)
+- `--tts-backend`: TTS backend (default: `speecht5`). Use `torchaudio` for Tacotron2+WaveRNN (can be very slow and may not show meaningful GPU usage).
 - `--model`, `-m`: LLM model to use for text processing (default: facebook/bart-large-cnn)
 - `--chunk-size`, `-c`: Text chunk size for processing (default: 1000)
+- `--batch-size`, `-b`: Batch size for LLM processing (default: 8)
+- `--no-llm`: Skip LLM text processing (fastest; uses raw extracted text)
 - `--no-gpu`: Disable GPU acceleration
 - `--volume`: Volume adjustment in dB (default: 0, negative values decrease volume, positive values increase volume)
 
@@ -159,14 +162,26 @@ To ensure GPU acceleration works properly:
   4. Run `nvidia-smi` in terminal to verify GPU is recognized by the system
 
 - **Out of Memory Errors**: If you encounter CUDA out of memory errors:
-  1. Reduce chunk size with `--chunk-size` option
-  2. Close other GPU-intensive applications
-  3. Try a smaller model with `--model` option
+  1. Reduce batch size with `--batch-size` option
+  2. Reduce chunk size with `--chunk-size` option
+  3. Close other GPU-intensive applications
+  4. Try a smaller model with `--model` option
+
+- **Slow "Processing text chunks"**: If text processing is slow and CPU/GPU usage looks low:
+  1. Increase throughput by raising `--batch-size` (GPU) or reducing it if you hit OOM
+  2. Reduce `--chunk-size` if you see long pauses (tokenization/inference per chunk can spike)
+  3. Use `--no-llm` to skip LLM processing entirely (fastest)
+  4. Consider a smaller/faster model via `--model` (e.g., `t5-base`)
 
 - **Slow Performance Despite GPU**: If processing is slow even with GPU:
   1. Check GPU utilization with `nvidia-smi` during processing
   2. Ensure you're not running in a virtual environment with limited GPU access
   3. Update GPU drivers to the latest version
+
+- **PyTorch `enable_nested_tensor` / `batch_first` Warning**: If you see a warning like:
+  `enable_nested_tensor is True, but self.use_nested_tensor is False because encoder_layer.self_attn.batch_first was not True`
+  this is a PyTorch performance advisory that can be triggered by upstream dependencies used by the TTS stack.
+  The app suppresses this specific warning by default to keep logs clean.
 - **Tokenizers Installation**: If you encounter errors related to tokenizers compilation during installation, you may need to install Rust:
   1. Download and install Rust from [https://rustup.rs/](https://rustup.rs/)
   2. Make sure Rust is in your PATH
@@ -199,10 +214,9 @@ pip install https://github.com/Somi-Project/SP313/releases/download/V1.0.0/sente
 ```
 
 - **PyTorch Serialization Issues**: If you encounter errors related to PyTorch serialization (like `'str' object has no attribute '__module__'`):
-  1. The application automatically adds safe globals for PyTorch 2.6+ compatibility and includes fallback mechanisms
-  2. If you encounter `'str' object has no attribute '__module__'` errors, the application will automatically fall back to an alternative TTS method
-  3. If you see `Can't call numpy() on Tensor that requires grad` errors, the application now properly detaches tensors before conversion
-  4. If issues persist, try downgrading PyTorch: `pip install torch==2.0.1 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cu118`
+  1. PyTorch 2.6+ uses a restricted unpickler by default. The application registers safe globals correctly (by passing real objects to `torch.serialization.add_safe_globals()` when available).
+  2. If safe-globals related issues persist, the application will automatically fall back to an alternative TTS method.
+  3. If issues persist, try a compatible PyTorch/torchaudio pair for your CUDA version (for example, `pip install torch==2.5.1 torchaudio==2.5.1`).
 
 ## License
 
