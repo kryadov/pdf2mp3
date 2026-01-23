@@ -2,6 +2,8 @@
 
 A Python application that converts PDF documents to MP3 audiobooks using LLM (Large Language Model) for text processing and Nvidia GPU for text-to-speech conversion.
 
+Start with https://huggingface.co/learn/audio-course/ru/chapter0/introduction
+
 ## Features
 
 - Extract text from PDF documents
@@ -53,7 +55,7 @@ This will convert the PDF to an MP3 file with the same name in the same director
 ### Command Line Options
 
 ```
-python pdf2mp3.py [-h] [--output OUTPUT] [--voice VOICE] [--tts-backend {speecht5,torchaudio}] [--model MODEL] [--chunk-size CHUNK_SIZE] [--no-gpu] [--volume VOLUME] pdf_path
+python pdf2mp3.py [-h] [--output OUTPUT] [--voice VOICE] [--tts-backend {speecht5,torchaudio}] [--model MODEL] [--chunk-size CHUNK_SIZE] [--batch-size BATCH_SIZE] [--no-llm] [--no-gpu] [--volume VOLUME] [--pause-ms PAUSE_MS] [--fade-ms FADE_MS] [--normalize] [--mp3-bitrate MP3_BITRATE] [--speecht5-speaker-idx SPEECHT5_SPEAKER_IDX] pdf_path
 ```
 
 Arguments:
@@ -68,6 +70,11 @@ Arguments:
 - `--no-llm`: Skip LLM text processing (fastest; uses raw extracted text)
 - `--no-gpu`: Disable GPU acceleration
 - `--volume`: Volume adjustment in dB (default: 0, negative values decrease volume, positive values increase volume)
+- `--pause-ms`: Silence inserted between TTS chunks in ms (default: 120). Helps pacing and reduces boundary clicks.
+- `--fade-ms`: Fade-in/out applied per chunk in ms (default: 12). Helps reduce clicks at chunk boundaries.
+- `--normalize`: Peak-normalize before encoding to avoid clipping and improve perceived loudness consistency.
+- `--mp3-bitrate`: MP3 bitrate (default: 192k). Try 256k/320k for higher quality.
+- `--speecht5-speaker-idx`: SpeechT5 speaker embedding index (default: 7). Different values may sound better/worse.
 
 ### Examples
 
@@ -94,6 +101,11 @@ python pdf2mp3.py document.pdf --no-gpu
 Increase the volume of the generated audio by 6 dB:
 ```
 python pdf2mp3.py document.pdf --volume 6
+```
+
+Improve perceived voice quality (higher MP3 bitrate + smoother chunk boundaries):
+```
+python pdf2mp3.py document.pdf --mp3-bitrate 320k --pause-ms 140 --fade-ms 15 --normalize
 ```
 
 ## How It Works

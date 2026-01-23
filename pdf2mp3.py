@@ -85,6 +85,34 @@ def parse_arguments():
     parser.add_argument("--no-llm", action="store_true", help="Skip LLM text processing (fastest; uses raw extracted text)")
     parser.add_argument("--no-gpu", action="store_true", help="Disable GPU acceleration")
     parser.add_argument("--volume", type=int, default=0, help="Volume adjustment in dB (default: 0, negative values decrease volume, positive values increase volume)")
+    parser.add_argument(
+        "--pause-ms",
+        type=int,
+        default=120,
+        help="Silence to insert between TTS chunks in milliseconds (default: 120). Helps reduce clicks and improves pacing.",
+    )
+    parser.add_argument(
+        "--fade-ms",
+        type=int,
+        default=12,
+        help="Fade-in/out length per chunk in milliseconds (default: 12). Helps reduce boundary clicks.",
+    )
+    parser.add_argument(
+        "--normalize",
+        action="store_true",
+        help="Peak-normalize audio before encoding to avoid clipping and improve perceived loudness consistency.",
+    )
+    parser.add_argument(
+        "--mp3-bitrate",
+        default="192k",
+        help="MP3 bitrate for export (default: 192k). Try 256k/320k for higher quality.",
+    )
+    parser.add_argument(
+        "--speecht5-speaker-idx",
+        type=int,
+        default=7,
+        help="Speaker embedding index for SpeechT5 (default: 7). Different values may sound better/worse.",
+    )
     return parser.parse_args()
 
 def extract_text_from_pdf(pdf_path):
@@ -204,7 +232,15 @@ def process_text_with_llm(text, model_name, chunk_size, batch_size, use_gpu):
     processed_text = " ".join(processed_chunks)
     return processed_text
 
-def text_to_speech(text, voice, use_gpu, tts_backend="speecht5"):
+def text_to_speech(
+    text,
+    voice,
+    use_gpu,
+    tts_backend="speecht5",
+    pause_ms: int = 120,
+    fade_ms: int = 12,
+    speecht5_speaker_idx: int = 7,
+):
     """Convert text to speech.
 
     Note: torchaudio's Tacotron2+WaveRNN backend is frequently CPU-bound and can appear
@@ -248,6 +284,43 @@ def text_to_speech(text, voice, use_gpu, tts_backend="speecht5"):
             units.extend(_chunk_text(p, max_chars))
         return units
 
+    def _apply_fade_in_out(x: np.ndarray, fade_samples: int) -> np.ndarray:
+        if fade_samples <= 0:
+            return x
+        n = x.shape[0]
+        if n == 0:
+            return x
+        fade_samples = min(fade_samples, n // 2)
+        if fade_samples <= 0:
+            return x
+        y = x.astype(np.float32, copy=False)
+        ramp = np.linspace(0.0, 1.0, fade_samples, dtype=np.float32)
+        y[:fade_samples] *= ramp
+        y[-fade_samples:] *= ramp[::-1]
+        return y
+
+    def _stitch_audio_segments(segments: list[np.ndarray], sample_rate: int) -> np.ndarray:
+        if not segments:
+            return np.zeros((0,), dtype=np.float32)
+
+        pause_samples = int(sample_rate * max(pause_ms, 0) / 1000.0)
+        fade_samples = int(sample_rate * max(fade_ms, 0) / 1000.0)
+        pause = np.zeros((pause_samples,), dtype=np.float32) if pause_samples > 0 else None
+
+        stitched: list[np.ndarray] = []
+        for s in segments:
+            x = np.asarray(s, dtype=np.float32).reshape(-1)
+            if x.size == 0:
+                continue
+            x = _apply_fade_in_out(x, fade_samples)
+            stitched.append(x)
+            if pause is not None:
+                stitched.append(pause)
+
+        if not stitched:
+            return np.zeros((0,), dtype=np.float32)
+        return np.concatenate(stitched)
+
     if tts_backend == "torchaudio":
         # Use torchaudio for TTS
         try:
@@ -290,7 +363,7 @@ def text_to_speech(text, voice, use_gpu, tts_backend="speecht5"):
                     waveforms, _ = vocoder(spec, spec_lengths)
                     audio_segments.append(waveforms[0].detach().cpu().numpy())
 
-            audio = np.concatenate(audio_segments) if audio_segments else np.zeros((0,), dtype=np.float32)
+            audio = _stitch_audio_segments(audio_segments, bundle.sample_rate)
             return audio, bundle.sample_rate
 
         except Exception as e:
@@ -310,20 +383,27 @@ def text_to_speech(text, voice, use_gpu, tts_backend="speecht5"):
     # Load speaker embeddings from the CMU Arctic dataset
     try:
         embeddings_dataset = datasets.load_dataset("Matthijs/cmu-arctic-xvectors", split="validation")
-        speaker_embeddings = torch.tensor(embeddings_dataset[7]["xvector"]).unsqueeze(0).to(device)
+        idx = int(speecht5_speaker_idx)
+        if idx < 0 or idx >= len(embeddings_dataset):
+            raise IndexError(f"SpeechT5 speaker idx {idx} is out of range (0..{len(embeddings_dataset)-1})")
+        speaker_embeddings = torch.tensor(embeddings_dataset[idx]["xvector"]).unsqueeze(0).to(device)
         print("Speaker embeddings loaded successfully")
     except Exception as e:
         print(f"Error loading speaker embeddings: {e}")
         print("Using default speaker embeddings")
         speaker_embeddings = torch.randn(1, 512).to(device)
 
-    units = _split_tts_units(text, max_chars=420)
+    units = _split_tts_units(text, max_chars=240)
     audio_segments = []
     pbar = tqdm(units, desc="Converting text chunks to speech")
     for unit in pbar:
         if not unit.strip():
             continue
         pbar.set_postfix(chars=len(unit))
+
+        # Ensure terminal punctuation for better prosody.
+        if unit[-1] not in ".!?":
+            unit += "."
 
         inputs = processor(text=unit, return_tensors="pt").to(device)
         with torch.inference_mode():
@@ -332,10 +412,11 @@ def text_to_speech(text, voice, use_gpu, tts_backend="speecht5"):
 
         audio_segments.append(speech.detach().cpu().numpy())
 
-    audio = np.concatenate(audio_segments) if audio_segments else np.zeros((0,), dtype=np.float32)
-    return audio, 16000  # 16kHz sample rate
+    sample_rate = 16000  # SpeechT5 HiFi-GAN output sample rate
+    audio = _stitch_audio_segments(audio_segments, sample_rate)
+    return audio, sample_rate
 
-def save_audio_to_mp3(audio, sample_rate, output_path, volume_db=0):
+def save_audio_to_mp3(audio, sample_rate, output_path, volume_db=0, normalize=False, mp3_bitrate="192k"):
     """Save audio data to an MP3 file with optional volume adjustment.
 
     Args:
@@ -346,8 +427,22 @@ def save_audio_to_mp3(audio, sample_rate, output_path, volume_db=0):
     """
     print(f"Saving audio to {output_path}...")
 
+    audio = np.asarray(audio, dtype=np.float32).reshape(-1)
+    if audio.size == 0:
+        raise ValueError("No audio was generated (empty waveform)")
+
+    # Optional peak normalization / anti-clipping.
+    peak = float(np.max(np.abs(audio)))
+    if normalize and peak > 0:
+        audio = (audio / peak) * 0.99
+        peak = 0.99
+
+    # Hard clip guard (avoids int16 wrap if upstream produced out-of-range values).
+    if peak > 1.0:
+        audio = np.clip(audio, -1.0, 1.0)
+
     # Convert to 16-bit PCM
-    audio_int16 = (audio * 32767).astype(np.int16)
+    audio_int16 = (audio * 32767.0).astype(np.int16)
 
     # Create a temporary WAV file
     temp_wav = output_path.replace('.mp3', '_temp.wav')
@@ -366,8 +461,8 @@ def save_audio_to_mp3(audio, sample_rate, output_path, volume_db=0):
         print(f"Adjusting volume by {volume_db} dB")
         audio_segment = audio_segment.apply_gain(volume_db)
 
-    # Export to MP3
-    audio_segment.export(output_path, format="mp3")
+    # Export to MP3 (explicit bitrate improves quality vs ffmpeg defaults)
+    audio_segment.export(output_path, format="mp3", bitrate=str(mp3_bitrate))
 
     # Remove temporary WAV file
     os.remove(temp_wav)
@@ -424,10 +519,20 @@ def main():
         args.voice,
         not args.no_gpu,
         tts_backend=args.tts_backend,
+        pause_ms=args.pause_ms,
+        fade_ms=args.fade_ms,
+        speecht5_speaker_idx=args.speecht5_speaker_idx,
     )
 
     # Save audio to MP3
-    save_audio_to_mp3(audio, sample_rate, args.output, args.volume)
+    save_audio_to_mp3(
+        audio,
+        sample_rate,
+        args.output,
+        volume_db=args.volume,
+        normalize=args.normalize,
+        mp3_bitrate=args.mp3_bitrate,
+    )
 
 if __name__ == "__main__":
     main()
