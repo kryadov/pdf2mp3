@@ -55,9 +55,12 @@ sympy==1.14.0
 tensorboard==2.20.0
 tensorboard-data-server==0.7.2
 tokenizers==0.22.2
-torch==2.8.0+cu129
-torchaudio==2.8.0+cu129
-torchvision==0.23.0+cu129
+torch==2.8.0+cu129; platform_system == "Windows"
+torchaudio==2.8.0+cu129; platform_system == "Windows"
+torchvision==0.23.0+cu129; platform_system == "Windows"
+torch==2.8.0; platform_system != "Windows"
+torchaudio==2.8.0; platform_system != "Windows"
+torchvision==0.23.0; platform_system != "Windows"
 tqdm==4.67.1
 transformers==4.57.6
 typing_extensions==4.15.0
