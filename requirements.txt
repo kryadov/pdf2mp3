@@ -1,4 +1,4 @@
-﻿absl-py==2.3.1
+absl-py==2.3.1
 aiohappyeyeballs==2.6.1
 aiohttp==3.14.4
 aiosignal==1.4.0
@@ -16,7 +16,7 @@ deep-phonemizer==0.0.19
 dill==0.4.0
 filelock==3.20.3
 frozenlist==1.8.0
-fsspec==2025.10.0
+fsspec==2026.6.0
 grpcio==1.76.0
 h11==0.16.0
 hf-xet==1.2.0
