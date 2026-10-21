@@ -1,4 +1,4 @@
-﻿absl-py==2.3.1
+absl-py==2.3.1
 aiohappyeyeballs==2.6.1
 aiohttp==3.13.3
 aiosignal==1.4.0
@@ -34,7 +34,7 @@ networkx==3.6.1
 numpy==2.4.1
 packaging==25.0
 pandas==2.3.3
-pillow==12.1.0
+pillow==13.0.0
 propcache==0.4.1
 protobuf==6.33.4
 pyarrow==23.0.0
