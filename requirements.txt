@@ -1,4 +1,4 @@
-﻿absl-py==2.3.1
+absl-py==2.3.1
 aiohappyeyeballs==2.6.1
 aiohttp==3.14.4
 aiosignal==1.4.0
@@ -45,7 +45,7 @@ PyAudio==0.2.14
 pycparser==2.23
 pydub==0.25.1
 Pygments==2.21.0
-pypdf==6.19.0
+pypdf==6.21.2
 python-dateutil==2.9.0.post0
 pytz==2025.2
 PyYAML==6.0.3
