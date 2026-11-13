@@ -15,7 +15,7 @@ cryptography==50.0.0
 datasets==5.0.1
 deep-phonemizer==0.0.19
 dill==0.4.0
-filelock==3.20.3
+filelock==4.2.1
 frozenlist==1.8.0
 fsspec==2026.6.0
 grpcio==1.76.0
@@ -61,12 +61,12 @@ sympy==1.14.0
 tensorboard==2.20.0
 tensorboard-data-server==0.7.2
 tokenizers==0.23.2
-torch==2.8.0; platform_system == "Windows"
-torchaudio==2.8.0; platform_system == "Windows"
-torchvision==0.23.0; platform_system == "Windows"
-torch==2.8.0; platform_system != "Windows"
-torchaudio==2.8.0; platform_system != "Windows"
-torchvision==0.23.0; platform_system != "Windows"
+torch==2.11.0; platform_system == "Windows"
+torchaudio==2.11.1; platform_system == "Windows"
+torchvision==0.26.0; platform_system == "Windows"
+torch==2.11.0; platform_system != "Windows"
+torchaudio==2.11.1; platform_system != "Windows"
+torchvision==0.26.0; platform_system != "Windows"
 tqdm==4.67.1
 transformers==5.17.0
 typer==0.27.3
